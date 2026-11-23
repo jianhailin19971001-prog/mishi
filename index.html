@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>米宝进食记</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; min-height: 100%; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    color: #6e3048;
+    background: #fff0f5;
+    overflow-x: hidden;
+  }
+
+  /* 背景层：默认粉色渐变，图片地址在页面底部脚本顶部 BG_IMAGE_URL 里填写 */
+  .bg-layer {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(circle at 18% 12%, rgba(255,255,255,.85), transparent 42%),
+      radial-gradient(circle at 82% 78%, rgba(255,214,228,.9), transparent 48%),
+      linear-gradient(160deg, #fff3f7 0%, #ffe3ee 48%, #ffd6e6 100%);
+    background-size: cover; background-position: center; background-repeat: no-repeat;
+  }
+  .bg-layer::after {
+    content: ""; position: absolute; inset: 0;
+    background: rgba(255, 248, 250, .42);
+  }
+
+  .app {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 430px;
+    margin: 0 auto; padding: 26px 18px 34px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+
+  /* 漂浮装饰 */
+  .decor { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+  .decor span { position: absolute; opacity: .5; animation: floaty 7s ease-in-out infinite; }
+  .decor .d1 { top: 12%; left: 8%; font-size: 26px; animation-delay: 0s; }
+  .decor .d2 { top: 26%; right: 9%; font-size: 20px; animation-delay: 1.4s; }
+  .decor .d3 { bottom: 22%; left: 6%; font-size: 22px; animation-delay: 2.2s; }
+  .decor .d4 { bottom: 8%; right: 8%; font-size: 28px; animation-delay: .8s; }
+  @keyframes floaty { 0%,100% { transform: translateY(0) rotate(-8deg); } 50% { transform: translateY(-16px) rotate(8deg); } }
+
+  .header { text-align: center; margin-bottom: 18px; }
+  .title-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .title-row .berry { font-size: 26px; animation: pop 2.4s ease-in-out infinite; }
+  @keyframes pop { 0%,100% { transform: scale(1); } 50% { transform: scale(1.16); } }
+  h1 {
+    margin: 0; font-size: 32px; letter-spacing: 2px; font-weight: 900;
+    background: linear-gradient(100deg, #ff5f8f 0%, #ff86ac 45%, #ff6f9c 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: 0 3px 0 rgba(255,255,255,.85);
+  }
+  .subtitle { margin: 8px 0 0; font-size: 13px; color: #b86b86; letter-spacing: .5px; }
+
+  .tabs {
+    display: flex; gap: 6px; padding: 5px; border-radius: 999px;
+    background: rgba(255,255,255,.78); box-shadow: 0 6px 20px rgba(255,120,160,.18);
+    margin-bottom: 20px;
+  }
+  .tab {
+    border: 0; cursor: pointer; padding: 10px 26px; border-radius: 999px;
+    font-size: 15px; font-weight: 700; color: #c07895; background: transparent;
+    transition: all .25s ease; font-family: inherit;
+  }
+  .tab.active {
+    color: #fff; background: linear-gradient(135deg, #ff7fa5, #ff5f8f);
+    box-shadow: 0 4px 12px rgba(255,95,143,.38);
+  }
+
+  .wheel-wrap { position: relative; width: 100%; max-width: 320px; aspect-ratio: 1 / 1; }
+  canvas { display: block; width: 100%; height: 100%; filter: drop-shadow(0 12px 22px rgba(255,110,155,.28)); }
+  .pointer {
+    position: absolute; top: -7px; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0; z-index: 4;
+    border-left: 15px solid transparent; border-right: 15px solid transparent;
+    border-top: 30px solid #ff4f86;
+    filter: drop-shadow(0 3px 3px rgba(190,50,100,.35));
+  }
+  .pointer::before {
+    content: ""; position: absolute; top: -33px; left: -7px;
+    width: 14px; height: 14px; border-radius: 50%; background: #ff4f86;
+    border: 3px solid #fff; box-shadow: 0 2px 6px rgba(190,50,100,.3);
+  }
+  .spin-btn {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 84px; height: 84px; border-radius: 50%; z-index: 3; cursor: pointer;
+    border: 5px solid #fff; color: #fff; font-family: inherit;
+    font-size: 18px; font-weight: 900; letter-spacing: 1px;
+    background: linear-gradient(145deg, #ff9dbb 0%, #ff5f8f 100%);
+    box-shadow: 0 6px 18px rgba(255,80,130,.5), inset 0 -4px 8px rgba(200,40,100,.18);
+    transition: transform .15s ease;
+  }
+  .spin-btn:active { transform: translate(-50%, -50%) scale(.94); }
+  .spin-btn.spinning { pointer-events: none; animation: heartbeat .8s ease-in-out infinite; }
+  @keyframes heartbeat { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-50%,-50%) scale(1.08); } }
+
+  .result-area { width: 100%; min-height: 96px; margin-top: 16px; text-align: center; }
+  .hint { font-size: 12px; color: #bf7d97; margin-top: 18px; line-height: 1.6; }
+  .result {
+    display: none; padding: 12px 16px 14px; border-radius: 20px;
+    background: rgba(255,255,255,.85); border: 2px dashed #ffb8cf;
+    box-shadow: 0 8px 20px rgba(255,120,160,.16);
+  }
+  .result.show { display: block; animation: rise .5s cubic-bezier(.2,1.4,.4,1) both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.92); } to { opacity: 1; transform: none; } }
+  .result-emoji { font-size: 26px; line-height: 1; }
+  .result-label { font-size: 12px; color: #c27f9a; margin-top: 4px; }
+  .result-name { font-size: 27px; font-weight: 900; color: #ff4f86; margin: 2px 0; }
+  .result-sub { font-size: 12px; color: #b9839b; }
+
+  .panel {
+    width: 100%; margin-top: 18px; padding: 16px;
+    border-radius: 24px; background: rgba(255,255,255,.78);
+    box-shadow: 0 10px 28px rgba(255,120,160,.14);
+    border: 1px solid rgba(255,255,255,.9);
+  }
+  .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+  .panel-head strong { font-size: 15px; color: #a64e70; }
+  .tip { display: block; font-size: 11px; color: #c492a6; margin-top: 3px; }
+  .panel-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .panel-actions button {
+    border: 1px solid #ffc4d7; background: #fff5f8; color: #d1668c;
+    border-radius: 999px; padding: 5px 11px; font-size: 11px; cursor: pointer;
+    font-family: inherit; font-weight: 700;
+  }
+  .panel-actions button:active { background: #ffe0ea; }
+  .options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .opt {
+    display: flex; align-items: center; gap: 7px; min-width: 0;
+    border: 1.5px solid #ffd3e0; border-radius: 12px; background: #fff;
+    padding: 9px 10px; font-size: 12.5px; font-family: inherit; font-weight: 600;
+    color: #8e4a64; cursor: pointer; text-align: left; transition: all .2s;
+  }
+  .opt .opt-dot { width: 7px; height: 7px; border-radius: 50%; background: #ff7fa5; flex-shrink: 0; }
+  .opt .opt-check { margin-left: auto; font-size: 12px; color: #ff6f9c; font-weight: 900; }
+  .opt.off { background: #f5f5f7; border-color: #e5e5e9; color: #aaaab2; }
+  .opt.off .opt-dot { background: #c9c9d0; }
+  .opt.off .opt-check { color: #b5b5bd; }
+  .opt.off span:nth-child(2) { text-decoration: line-through; }
+  .count { text-align: right; font-size: 11px; color: #bd8299; margin-top: 10px; }
+
+  footer { margin-top: 20px; font-size: 11px; color: #c88aa2; letter-spacing: 1px; }
+
+  .confetti {
+    position: fixed; top: -24px; width: 9px; height: 15px; z-index: 20;
+    border-radius: 2px; pointer-events: none;
+    animation: fall 2.2s cubic-bezier(.25,.6,.5,1) forwards;
+  }
+  @keyframes fall {
+    to { transform: translate(var(--dx), 105vh) rotate(var(--rot)); opacity: .2; }
+  }
+  .toast {
+    position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%) translateY(10px);
+    background: rgba(110,48,72,.92); color: #fff; padding: 10px 18px; border-radius: 999px;
+    font-size: 13px; z-index: 30; opacity: 0; transition: all .25s; pointer-events: none; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="bg-layer" id="bgLayer"></div>
+<div class="decor"><span class="d1">💗</span><span class="d2">✨</span><span class="d3">🧁</span><span class="d4">🎀</span></div>
+
+<div class="app">
+  <header class="header">
+    <div class="title-row"><span class="berry">🍓</span><h1>米宝进食记</h1><span class="berry">🍓</span></div>
+    <p class="subtitle">今天吃什么？转一转就知道啦 ~</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-key="takeout">🥡 外卖</button>
+    <button class="tab" data-key="eatout">🍽️ 出去吃</button>
+  </div>
+
+  <div class="wheel-wrap">
+    <div class="pointer"></div>
+    <canvas id="wheel"></canvas>
+    <button class="spin-btn" id="spinBtn">开始</button>
+  </div>
+
+  <div class="result-area">
+    <div class="result" id="result"></div>
+    <div class="hint" id="hint">点中间「开始」按钮，帮米宝决定今天吃什么 ✨</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <div><strong>参与设置</strong><span class="tip">点一下变灰，就不会被转到啦</span></div>
+      <div class="panel-actions">
+        <button id="allOn">全部参与</button>
+        <button id="invert">反选</button>
+      </div>
+    </div>
+    <div class="options" id="options"></div>
+    <div class="count" id="count"></div>
+  </div>
+
+  <footer>MADE WITH 💗 FOR 米宝</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   背景图片：把你的图片地址填进下面引号里即可（留空则显示默认粉色渐变）
+   例如：const BG_IMAGE_URL = 'https://xxx.com/bg.jpg';
+        或：const BG_IMAGE_URL = './bg.jpg';
+   ============================================================ */
+const BG_IMAGE_URL = '';
+
+if (BG_IMAGE_URL.trim()) {
+  document.getElementById('bgLayer').style.backgroundImage =
+    'url("' + BG_IMAGE_URL.trim().replace(/"/g, '%22') + '")';
+}
+
+const DATA = {
+  takeout: ['新疆炒米粉','益阳麻辣烫','骨汤麻辣烫','盖码饭','炒饭','酸奶碗','奶茶','小面包','韩式拌饭','达美乐炸鸡'],
+  eatout:  ['火锅','湘菜','米线','烤肉','椰子鸡','韩餐漂亮饭','烧烤','鱼籽火锅','冒菜','麻辣香锅']
+};
+
+const COLORS = [
+  '#FF9EB5','#FFD0DC','#FFB3C6','#FFE0C8','#FFAEC9',
+  '#E8C4EE','#FFC9D6','#FFD9A8','#F8BBD0','#FFB7B2'
+];
+
+const STORAGE_KEY = 'mibao_food_wheel_v1';
+let state;
+try { state = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch (e) { state = {}; }
+['takeout','eatout'].forEach(k => {
+  if (!Array.isArray(state[k]) || state[k].length !== DATA[k].length) {
+    state[k] = DATA[k].map(() => true);
+  }
+});
+function saveState() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {} }
+
+let currentKey = 'takeout';
+let rotation = 0;
+let spinning = false;
+
+const canvas = document.getElementById('wheel');
+const ctx = canvas.getContext('2d');
+const SIZE = 320;
+const DPR = Math.min(window.devicePixelRatio || 1, 3);
+canvas.width = SIZE * DPR;
+canvas.height = SIZE * DPR;
+ctx.scale(DPR, DPR);
+const TWO_PI = Math.PI * 2;
+const SEG = TWO_PI / 10;
+
+function drawWheel() {
+  const cx = SIZE / 2, cy = SIZE / 2, r = SIZE / 2 - 8;
+  ctx.clearRect(0, 0, SIZE, SIZE);
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(rotation);
+
+  // 扇形
+  DATA[currentKey].forEach((label, i) => {
+    const a0 = -Math.PI / 2 + i * SEG;
+    const off = !state[currentKey][i];
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, r, a0, a0 + SEG);
+    ctx.closePath();
+    ctx.fillStyle = off ? '#E8E8EC' : COLORS[i % COLORS.length];
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  });
+
+  // 文字（保持尽量正向可读）
+  DATA[currentKey].forEach((label, i) => {
+    const a = -Math.PI / 2 + (i + 0.5) * SEG;
+    const off = !state[currentKey][i];
+    ctx.save();
+    ctx.rotate(a);
+    ctx.font = '700 15px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = off ? '#A9A9B2' : '#6E3048';
+    if (Math.cos(a) < 0) {
+      ctx.rotate(Math.PI);
+      ctx.textAlign = 'left';
+      ctx.fillText(label, -(r - 16), 0);
+    } else {
+      ctx.textAlign = 'right';
+      ctx.fillText(label, r - 16, 0);
+    }
+    ctx.restore();
+  });
+  ctx.restore();
+
+  // 外圈装饰
+  ctx.beginPath(); ctx.arc(cx, cy, r + 2, 0, TWO_PI);
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 8; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, r + 6.5, 0, TWO_PI);
+  ctx.strokeStyle = 'rgba(255,120,165,.55)'; ctx.lineWidth = 3; ctx.stroke();
+}
+
+function renderOptions() {
+  const wrap = document.getElementById('options');
+  wrap.innerHTML = DATA[currentKey].map((name, i) => {
+    const on = state[currentKey][i];
+    return '<button class="opt ' + (on ? '' : 'off') + '" data-i="' + i + '" aria-pressed="' + on + '">' +
+      '<span class="opt-dot"></span><span>' + name + '</span><span class="opt-check">' + (on ? '✓' : '×') + '</span></button>';
+  }).join('');
+  wrap.querySelectorAll('.opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (spinning) return;
+      const i = Number(btn.dataset.i);
+      state[currentKey][i] = !state[currentKey][i];
+      saveState();
+      renderOptions(); drawWheel(); clearResult();
+    });
+  });
+  const n = state[currentKey].filter(Boolean).length;
+  document.getElementById('count').textContent = '已参与 ' + n + ' / ' + DATA[currentKey].length + ' 项';
+}
+
+function clearResult() {
+  document.getElementById('result').classList.remove('show');
+  document.getElementById('hint').style.display = '';
+}
+
+function showResult(name) {
+  const el = document.getElementById('result');
+  el.innerHTML =
+    '<div class="result-emoji">🎉</div>' +
+    '<div class="result-label">今天就吃</div>' +
+    '<div class="result-name">' + name + '</div>' +
+    '<div class="result-sub">米宝决定好啦，开动吧！</div>';
+  el.classList.add('show');
+  document.getElementById('hint').style.display = 'none';
+  confetti();
+}
+
+function spin() {
+  if (spinning) return;
+  const enabled = [];
+  DATA[currentKey].forEach((_, i) => { if (state[currentKey][i]) enabled.push(i); });
+  if (!enabled.length) { toast('至少保留一个能吃的选项哦～'); return; }
+
+  spinning = true;
+  const btn = document.getElementById('spinBtn');
+  btn.classList.add('spinning');
+  clearResult();
+
+  const pick = enabled[Math.floor(Math.random() * enabled.length)];
+  const jitter = (Math.random() - 0.5) * SEG * 0.55;
+  let targetMod = (-(pick + 0.5) * SEG + jitter) % TWO_PI;
+  if (targetMod < 0) targetMod += TWO_PI;
+  const curMod = ((rotation % TWO_PI) + TWO_PI) % TWO_PI;
+  const delta = (targetMod - curMod + TWO_PI) % TWO_PI;
+  const startR = rotation;
+  const finalR = rotation + (5 + Math.floor(Math.random() * 2)) * TWO_PI + delta;
+  const duration = 4200;
+  const t0 = performance.now();
+
+  function frame(now) {
+    const t = Math.min((now - t0) / duration, 1);
+    const e = 1 - Math.pow(1 - t, 4);
+    rotation = startR + (finalR - startR) * e;
+    drawWheel();
+    if (t < 1) {
+      requestAnimationFrame(frame);
+    } else {
+      rotation = finalR % TWO_PI;
+      drawWheel();
+      spinning = false;
+      btn.classList.remove('spinning');
+      showResult(DATA[currentKey][pick]);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove('show'), 1800);
+}
+
+function confetti() {
+  const colors = ['#ff5f8f','#ff9eb5','#ffd166','#c792ea','#7ad7f0','#ffb3c6'];
+  for (let i = 0; i < 70; i++) {
+    const p = document.createElement('div');
+    p.className = 'confetti';
+    p.style.left = Math.random() * 100 + 'vw';
+    p.style.background = colors[i % colors.length];
+    p.style.animationDelay = (Math.random() * 0.35) + 's';
+    p.style.setProperty('--dx', ((Math.random() - 0.5) * 240) + 'px');
+    p.style.setProperty('--rot', (Math.random() * 900 - 450) + 'deg');
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 2800);
+  }
+}
+
+document.getElementById('spinBtn').addEventListener('click', spin);
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    if (spinning || tab.dataset.key === currentKey) return;
+    currentKey = tab.dataset.key;
+    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.key === currentKey));
+    rotation = 0;
+    drawWheel(); renderOptions(); clearResult();
+  });
+});
+
+document.getElementById('allOn').addEventListener('click', () => {
+  if (spinning) return;
+  state[currentKey] = DATA[currentKey].map(() => true);
+  saveState(); renderOptions(); drawWheel(); clearResult();
+});
+document.getElementById('invert').addEventListener('click', () => {
+  if (spinning) return;
+  state[currentKey] = state[currentKey].map(v => !v);
+  saveState(); renderOptions(); drawWheel(); clearResult();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); spin(); }
+});
+
+drawWheel();
+renderOptions();
+</script>
+</body>
+</html>
