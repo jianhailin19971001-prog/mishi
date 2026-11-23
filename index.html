@@ -80,11 +80,7 @@
     border-top: 30px solid #ff4f86;
     filter: drop-shadow(0 3px 3px rgba(190,50,100,.35));
   }
-  .pointer::before {
-    content: ""; position: absolute; top: -30px; left: 50%;transform: translateX(-50%);
-    width: 14px; height: 14px; border-radius: 50%; background: #ff4f86;
-    border: 3px solid #fff; box-shadow: 0 2px 6px rgba(190,50,100,.3);
-  }
+ 
   .spin-btn {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     width: 84px; height: 84px; border-radius: 50%; z-index: 3; cursor: pointer;
@@ -249,9 +245,15 @@ canvas.width = SIZE * DPR;
 canvas.height = SIZE * DPR;
 ctx.scale(DPR, DPR);
 const TWO_PI = Math.PI * 2;
-const SEG = TWO_PI / 10;
+let SEG = TWO_PI / DATA[currentKey].length;
+
+// 每次重绘都按当前分类的实际选项数重新分栏
+function updateSeg() {
+  SEG = TWO_PI / DATA[currentKey].length;
+}
 
 function drawWheel() {
+  updateSeg();
   const cx = SIZE / 2, cy = SIZE / 2, r = SIZE / 2 - 8;
   ctx.clearRect(0, 0, SIZE, SIZE);
 
@@ -274,13 +276,15 @@ function drawWheel() {
     ctx.stroke();
   });
 
-  // 文字（保持尽量正向可读）
+  // 文字（保持尽量正向可读，字号随份数自适应）
+  const n = DATA[currentKey].length;
+  const fontSize = n >= 14 ? 11 : n >= 12 ? 12 : n >= 9 ? 15 : 17;
   DATA[currentKey].forEach((label, i) => {
     const a = -Math.PI / 2 + (i + 0.5) * SEG;
     const off = !state[currentKey][i];
     ctx.save();
     ctx.rotate(a);
-    ctx.font = '700 15px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.font = '700 ' + fontSize + 'px "PingFang SC","Microsoft YaHei",sans-serif';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = off ? '#A9A9B2' : '#6E3048';
     if (Math.cos(a) < 0) {
@@ -341,6 +345,7 @@ function showResult(name) {
 
 function spin() {
   if (spinning) return;
+  updateSeg();
   const enabled = [];
   DATA[currentKey].forEach((_, i) => { if (state[currentKey][i]) enabled.push(i); });
   if (!enabled.length) { toast('至少保留一个能吃的选项哦～'); return; }
